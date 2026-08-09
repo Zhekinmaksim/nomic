@@ -108,9 +108,7 @@
         <button type="button" id="copy" style="flex: none; background: #4CEF60; color: #060A06; border: none; padding: 1px 12px; cursor: pointer; font-size: 1.125rem; letter-spacing: 0.08em;">COPY</button>
       </div>
       <div style="margin-top: 10px; display: flex; align-items: baseline; gap: 8px 12px; flex-wrap: wrap;">
-        <button type="button" id="connect" class="keybtn" style="border: 1px solid #4CEF60; padding: 0 10px;">CONNECT WALLET</button>
         <button type="button" id="sendtx" class="keybtn" style="border: 1px solid #4CEF60; padding: 0 10px;">SEND TX</button>
-        <span id="walletstate" style="color: #8FE79C;">NO WALLET</span>
         <span id="txstate" style="color: #4FB35F; word-break: break-all;"></span>
       </div>
     </section>
@@ -163,6 +161,8 @@
   <div style="position: sticky; left: 0; right: 0; bottom: 0; z-index: 201; background: #4CEF60; color: #060A06; padding: 4px 16px; display: flex; gap: 4px 18px; flex-wrap: wrap; font-size: 1.125rem;">
     <span id="keys" style="display: contents;"></span>
     <span style="flex: 1 1 auto;"></span>
+    <button type="button" class="keybtn" id="connect"><u>W</u> CONNECT WALLET</button>
+    <span id="walletstate" style="color: #060A06;">NO WALLET</span>
     <button type="button" class="keybtn" id="refresh"><u>R</u> <span id="refreshlabel">REFRESH</span></button>
     <span>ESC CLOSE</span>
   </div>
@@ -417,11 +417,13 @@
     if (seated) { bits.push("SEATED AS " + seated.name); }
     if (w.err) { bits.push("ERROR: " + w.err); }
     $("walletstate").textContent = bits.join("  //  ");
-    $("txstate").textContent = w.tx || "";
+    if ($("txstate")) { $("txstate").textContent = w.tx || ""; }
     $("connect").textContent = w.address ? "WALLET CONNECTED" : "CONNECT WALLET";
     $("connect").disabled = w.connecting || w.sending;
-    $("sendtx").textContent = w.sending ? "SENDING" : "SEND TX";
-    $("sendtx").disabled = !S.form || w.connecting || w.sending;
+    if ($("sendtx")) {
+      $("sendtx").textContent = w.sending ? "SENDING" : "SEND TX";
+      $("sendtx").disabled = !S.form || w.connecting || w.sending;
+    }
   }
 
   function connectWallet() {
@@ -1120,6 +1122,7 @@
     }
     if (e.key === "Escape") { S.form = null; paintForm(); return; }
     if (e.key === "r" || e.key === "R") { load(true); return; }
+    if (e.key === "w" || e.key === "W") { connectWallet()["catch"](function () {}); return; }
     var n = null;
     if (/^F[1-4]$/.test(e.key)) { n = Number(e.key.slice(1)); }
     if (/^[1-4]$/.test(e.key)) { n = Number(e.key); }

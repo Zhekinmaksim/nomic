@@ -54,10 +54,11 @@ test("terminal page renders the fallback game and builds CLI commands", async ({
     await expect(page.locator("#roster")).toContainText("TO MOVE");
     await expect(page.locator("#queue")).toContainText("Nothing to vote on");
     await expect(page.locator("#log")).toContainText("No moves yet");
+    await expect(page.getByRole("button", { name: /CONNECT WALLET/ })).toBeVisible();
+    await expect(page.locator("#walletstate")).toHaveText("NO WALLET");
 
     await page.getByRole("button", { name: /PF1 JOIN/ }).click();
     await expect(page.locator("#command")).toHaveText('python3 cli/nomic.py join "Player"');
-    await expect(page.getByRole("button", { name: "CONNECT WALLET" })).toBeVisible();
     await expect(page.getByRole("button", { name: "SEND TX" })).toBeVisible();
 
     await page.keyboard.press("Escape");
