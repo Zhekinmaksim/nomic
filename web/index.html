@@ -324,7 +324,14 @@
       import("https://esm.sh/genlayer-js/chains")
     ]).then(function (m) {
       var sdk = m[0], chains = m[1];
-      var chain = chains[CHAIN] || chains.bradbury || chains.studionet || chains.simulator
+      var aliases = {
+        bradbury: "testnetBradbury",
+        "testnet-bradbury": "testnetBradbury",
+        asimov: "testnetAsimov",
+        "testnet-asimov": "testnetAsimov"
+      };
+      var chain = chains[CHAIN] || chains[aliases[CHAIN]] || chains.testnetBradbury
+        || chains.studionet || chains.simulator
         || Object.keys(chains).map(function (k) { return chains[k]; })
           .filter(function (c) { return c && c.id; })[0];
       var client = sdk.createClient({ chain: chain, account: sdk.createAccount() });
