@@ -86,8 +86,12 @@ Those two must match. If they do, Stage A is pinning what it claims to pin.
 
 ## 5. Seat the players
 
-Joining closes as soon as the first move is made, so seat everyone first. On
-one machine, `--account` switches between the named keystores:
+Joining closes as soon as the first move is made, so seat everyone first. For
+public play, each player can open the web app, press `JOIN`, connect their
+wallet and sign the transaction from that wallet. The deployer's key is not
+needed after deployment except for moves that the deployer personally makes.
+
+On one machine, `--account` switches between the named keystores:
 
 ```
 python3 cli/nomic.py --account alice join "Alice"

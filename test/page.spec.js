@@ -55,13 +55,19 @@ test("terminal page renders the fallback game and builds CLI commands", async ({
     await expect(page.locator("#queue")).toContainText("Nothing to vote on");
     await expect(page.locator("#log")).toContainText("No moves yet");
 
-    await page.getByRole("button", { name: /PF1 MOVE/ }).click();
+    await page.getByRole("button", { name: /PF1 JOIN/ }).click();
+    await expect(page.locator("#command")).toHaveText('python3 cli/nomic.py join "Player"');
+    await expect(page.getByRole("button", { name: "CONNECT WALLET" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "SEND TX" })).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: /PF2 MOVE/ }).click();
     await expect(page.locator("#command")).toHaveText(
       'python3 cli/nomic.py move "I claim four points." --claim 4 --clarify "A claim of four points on your own turn is legal."'
     );
 
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: /PF2 PROPOSE/ }).click();
+    await page.getByRole("button", { name: /PF3 PROPOSE/ }).click();
     await expect(page.locator("#command")).toHaveText(
       'python3 cli/nomic.py propose enact "A player may not claim the same number of points twice in a row."'
     );

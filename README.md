@@ -253,7 +253,14 @@ genlayer deploy --contract contracts/nomic.py
 export NOMIC_ADDRESS=0x...
 ```
 
-Playing:
+Playing in the web app:
+
+Open the deployed page, choose an action, press `CONNECT WALLET`, then `SEND TX`.
+The browser wallet signs with the player's own account on GenLayer Bradbury;
+the deployer's private key is not used by other players. Joining is available
+until the first move lands, so seat the second player before Alice moves.
+
+Playing from the CLI:
 
 ```
 python3 cli/nomic.py --account alice join "Alice"

@@ -107,6 +107,12 @@
         <span data-blink="1" style="display: inline-block; width: 0.55em; height: 1em; background: #4CEF60; vertical-align: -0.15em;"></span>
         <button type="button" id="copy" style="flex: none; background: #4CEF60; color: #060A06; border: none; padding: 1px 12px; cursor: pointer; font-size: 1.125rem; letter-spacing: 0.08em;">COPY</button>
       </div>
+      <div style="margin-top: 10px; display: flex; align-items: baseline; gap: 8px 12px; flex-wrap: wrap;">
+        <button type="button" id="connect" class="keybtn" style="border: 1px solid #4CEF60; padding: 0 10px;">CONNECT WALLET</button>
+        <button type="button" id="sendtx" class="keybtn" style="border: 1px solid #4CEF60; padding: 0 10px;">SEND TX</button>
+        <span id="walletstate" style="color: #8FE79C;">NO WALLET</span>
+        <span id="txstate" style="color: #4FB35F; word-break: break-all;"></span>
+      </div>
     </section>
 
     <div class="panes">
@@ -181,8 +187,11 @@
   var S = {
     data: null, err: null, loadedAt: 0, loading: true,
     form: null, values: {}, copied: false,
-    tab: START_TAB, query: "", showGone: false, highlight: 0, version: 0
+    tab: START_TAB, query: "", showGone: false, highlight: 0, version: 0,
+    wallet: { address: "", connecting: false, sending: false, err: "", tx: "" }
   };
+
+  var SDK_CACHE = null;
 
   function $(id) { return document.getElementById(id); }
 
@@ -238,6 +247,13 @@
   // ---- forms --------------------------------------------------------------
 
   var FORMS = {
+    join: {
+      label: "JOIN", title: "JOIN THE GAME",
+      why: "Choose the name that will be attached to the address signing this transaction.",
+      fields: [{ name: "name", label: "PLAYER NAME", type: "text", def: "Player" }],
+      build: function (v) { return "join " + sh(v.name || "Player"); },
+      call: function (v) { return { method: "join", args: [v.name || "Player"] }; }
+    },
     move: {
       label: "MOVE", title: "MAKE A MOVE",
       why: "Say what you are doing and what it does to the game. The clarifying rule is "
@@ -255,6 +271,11 @@
         if (v.effect === "CLAIM") { c += " --claim " + (v.claim || 1); }
         if (v.effect === "PASS") { c += " --pass"; }
         return c + " --clarify " + sh(v.clarify);
+      },
+      call: function (v) {
+        var kind = v.effect || "CLAIM";
+        var value = kind === "CLAIM" ? Number(v.claim || 1) : 0;
+        return { method: "submit_move", args: [v.text || "", kind, value, v.clarify || ""] };
       }
     },
     propose: {
@@ -280,6 +301,15 @@
         c += " " + sh(v.text);
         if (v.rule && Number(v.rule) > 0) { c += " --rule " + v.rule; }
         return c;
+      },
+      call: function (v) {
+        var kind = String(v.kind || "enact").toUpperCase();
+        var target = Number(v.rule || 0);
+        var param = v.param || "";
+        if (kind === "SETPARAM" && !target) {
+          target = { max_claim: 202, victory_score: 203, vote_threshold: 204, max_rules: 205 }[param] || 0;
+        }
+        return { method: "propose", args: [kind, target, v.text || "", param, Number(v.value || 0)] };
       }
     },
     vote: {
@@ -289,7 +319,8 @@
         { name: "id", label: "PROPOSAL", type: "select", options: [], def: "" },
         { name: "choice", label: "YOUR VOTE", type: "select", options: ["yes", "no"], def: "yes" }
       ],
-      build: function (v) { return "vote " + (v.id || 1) + " " + (v.choice || "yes"); }
+      build: function (v) { return "vote " + (v.id || 1) + " " + (v.choice || "yes"); },
+      call: function (v) { return { method: "vote", args: [Number(v.id || 1), v.choice !== "no"] }; }
     },
     resolve: {
       label: "RESOLVE", title: "RESOLVE A PROPOSAL",
@@ -297,7 +328,8 @@
         + "the ending under rule 105 if the amendment turns out to be one the contract cannot "
         + "execute.",
       fields: [{ name: "id", label: "PROPOSAL", type: "select", options: [], def: "" }],
-      build: function (v) { return "resolve " + (v.id || 1); }
+      build: function (v) { return "resolve " + (v.id || 1); },
+      call: function (v) { return { method: "resolve_proposal", args: [Number(v.id || 1)] }; }
     },
     win: {
       label: "CLAIM WIN", title: "CLAIM THE WIN",
@@ -305,7 +337,8 @@
         + "stands to decide whether you have met it.",
       fields: [{ name: "text", label: "GROUND FOR YOUR CLAIM", type: "textarea",
         def: "I hold one hundred points." }],
-      build: function (v) { return "win " + sh(v.text); }
+      build: function (v) { return "win " + sh(v.text); },
+      call: function (v) { return { method: "claim_victory", args: [v.text || ""] }; }
     }
   };
 
@@ -317,23 +350,33 @@
     })]);
   }
 
+  function loadSdk() {
+    if (!SDK_CACHE) {
+      SDK_CACHE = Promise.all([
+        import("https://esm.sh/genlayer-js"),
+        import("https://esm.sh/genlayer-js/chains")
+      ]).then(function (m) {
+        var sdk = m[0], chains = m[1];
+        var aliases = {
+          bradbury: "testnetBradbury",
+          "testnet-bradbury": "testnetBradbury",
+          asimov: "testnetAsimov",
+          "testnet-asimov": "testnetAsimov"
+        };
+        var chainKey = chains[CHAIN] ? CHAIN : aliases[CHAIN];
+        var chain = chains[chainKey] || chains.testnetBradbury || chains.studionet
+          || chains.simulator || Object.keys(chains).map(function (k) { return chains[k]; })
+            .filter(function (c) { return c && c.id; })[0];
+        return { sdk: sdk, chains: chains, chain: chain, chainName: chainKey || "testnetBradbury" };
+      });
+    }
+    return SDK_CACHE;
+  }
+
   function readLive() {
     if (!ADDRESS) { return Promise.reject(new Error("no address")); }
-    return cap(Promise.all([
-      import("https://esm.sh/genlayer-js"),
-      import("https://esm.sh/genlayer-js/chains")
-    ]).then(function (m) {
-      var sdk = m[0], chains = m[1];
-      var aliases = {
-        bradbury: "testnetBradbury",
-        "testnet-bradbury": "testnetBradbury",
-        asimov: "testnetAsimov",
-        "testnet-asimov": "testnetAsimov"
-      };
-      var chain = chains[CHAIN] || chains[aliases[CHAIN]] || chains.testnetBradbury
-        || chains.studionet || chains.simulator
-        || Object.keys(chains).map(function (k) { return chains[k]; })
-          .filter(function (c) { return c && c.id; })[0];
+    return cap(loadSdk().then(function (m) {
+      var sdk = m.sdk, chain = m.chain;
       var client = sdk.createClient({ chain: chain, account: sdk.createAccount() });
       function read(fn) {
         return client.readContract({ address: ADDRESS, functionName: fn, args: [] });
@@ -361,6 +404,113 @@
     var d = JSON.parse(JSON.stringify(window.NOMIC_FALLBACK));
     d.origin = "snapshot";
     return d;
+  }
+
+  function paintWallet() {
+    if (!$("walletstate")) { return; }
+    var w = S.wallet;
+    var bits = [];
+    if (w.connecting) { bits.push("CONNECTING"); }
+    else if (w.address) { bits.push("WALLET " + shortAddr(w.address)); }
+    else { bits.push("NO WALLET"); }
+    var seated = walletPlayer();
+    if (seated) { bits.push("SEATED AS " + seated.name); }
+    if (w.err) { bits.push("ERROR: " + w.err); }
+    $("walletstate").textContent = bits.join("  //  ");
+    $("txstate").textContent = w.tx || "";
+    $("connect").textContent = w.address ? "WALLET CONNECTED" : "CONNECT WALLET";
+    $("connect").disabled = w.connecting || w.sending;
+    $("sendtx").textContent = w.sending ? "SENDING" : "SEND TX";
+    $("sendtx").disabled = !S.form || w.connecting || w.sending;
+  }
+
+  function connectWallet() {
+    var provider = window.ethereum;
+    if (!provider || !provider.request) {
+      S.wallet.err = "browser wallet not found";
+      paintWallet();
+      return Promise.reject(new Error(S.wallet.err));
+    }
+    S.wallet.connecting = true;
+    S.wallet.err = "";
+    S.wallet.tx = "";
+    paintWallet();
+    return provider.request({ method: "eth_requestAccounts" }).then(function (accounts) {
+      if (!accounts || !accounts[0]) { throw new Error("no account selected"); }
+      S.wallet.address = accounts[0];
+      return loadSdk().then(function (m) {
+        var client = m.sdk.createClient({
+          chain: m.chain,
+          account: S.wallet.address,
+          provider: provider
+        });
+        return Promise.resolve(client.connect ? client.connect(m.chainName) : null);
+      });
+    }).then(function () {
+      S.wallet.connecting = false;
+      S.wallet.err = "";
+      paintWallet();
+      paintKeys();
+    })["catch"](function (e) {
+      S.wallet.connecting = false;
+      S.wallet.err = String((e && e.message) || e);
+      paintWallet();
+      throw e;
+    });
+  }
+
+  function sendTx() {
+    if (!S.form || !FORMS[S.form].call) { return; }
+    var provider = window.ethereum;
+    if (!provider || !provider.request) {
+      S.wallet.err = "browser wallet not found";
+      paintWallet();
+      return;
+    }
+    var ready = S.wallet.address ? Promise.resolve() : connectWallet();
+    ready.then(function () {
+      var spec = FORMS[S.form].call(S.values);
+      S.wallet.sending = true;
+      S.wallet.err = "";
+      S.wallet.tx = "WAITING FOR SIGNATURE";
+      paintWallet();
+      return loadSdk().then(function (m) {
+        var client = m.sdk.createClient({
+          chain: m.chain,
+          account: S.wallet.address,
+          provider: provider
+        });
+        return Promise.resolve(client.connect ? client.connect(m.chainName) : null)
+          .then(function () {
+            return client.writeContract({
+              address: ADDRESS,
+              functionName: spec.method,
+              args: spec.args,
+              value: BigInt(0)
+            });
+          })
+          .then(function (hash) {
+            S.wallet.tx = "TX " + hash + "  //  WAITING FOR ACCEPTED";
+            paintWallet();
+            return client.waitForTransactionReceipt({
+              hash: hash,
+              status: "ACCEPTED",
+              retries: 80,
+              interval: 3000
+            }).then(function () { return hash; });
+          });
+      });
+    }).then(function (hash) {
+      S.wallet.sending = false;
+      S.wallet.tx = "ACCEPTED " + hash;
+      S.form = null;
+      paintWallet();
+      load(true);
+    })["catch"](function (e) {
+      S.wallet.sending = false;
+      S.wallet.err = String((e && e.message) || e);
+      paintWallet();
+    });
   }
 
   function load(quiet) {
@@ -393,14 +543,30 @@
     return S.data ? S.data.proposals.filter(function (p) { return p.status === "OPEN"; }) : [];
   }
 
+  function shortAddr(addr) {
+    return addr ? addr.slice(0, 6) + "..." + addr.slice(-4) : "";
+  }
+
+  function walletPlayer() {
+    if (!S.data || !S.wallet.address) { return null; }
+    var mine = S.wallet.address.toLowerCase();
+    return S.data.players.filter(function (p) {
+      return String(p.address || "").toLowerCase() === mine;
+    })[0] || null;
+  }
+
   function actions() {
     if (!S.data) { return []; }
     var open = openProposals();
+    var st = S.data.state;
+    var seated = walletPlayer();
+    var unknownWallet = !S.wallet.address;
     var a = [];
-    if (S.data.state.phase === "PLAY") { a.push("move", "propose"); }
-    if (open.length) { a.push("vote", "resolve"); }
-    if (S.data.state.phase === "PLAY" && !open.length) { a.push("win"); }
-    if (S.data.state.phase === "OVER") { a = []; }
+    if (st.phase === "PLAY" && st.moves === 0 && !seated) { a.push("join"); }
+    if (st.phase === "PLAY" && (unknownWallet || seated)) { a.push("move", "propose"); }
+    if (open.length && (unknownWallet || seated)) { a.push("vote", "resolve"); }
+    if (st.phase === "PLAY" && !open.length && (unknownWallet || seated)) { a.push("win"); }
+    if (st.phase === "OVER") { a = []; }
     return a.slice(0, 4);
   }
 
@@ -536,7 +702,7 @@
 
   function paintForm() {
     var sec = $("formsec");
-    if (!S.form) { sec.hidden = true; paintKeys(); return; }
+    if (!S.form) { sec.hidden = true; paintKeys(); paintWallet(); return; }
     var f = FORMS[S.form];
     sec.hidden = false;
     $("formtitle").textContent = f.title;
@@ -573,11 +739,13 @@
 
     $("command").textContent = buildCommand();
     $("copy").textContent = S.copied ? "COPIED" : "COPY";
+    paintWallet();
     paintKeys();
   }
 
   function refreshCommand() {
     $("command").textContent = buildCommand();
+    paintWallet();
     if (!S.form) { return; }
     FORMS[S.form].fields.forEach(function (fl) {
       var el = $("warn-" + fl.name);
@@ -892,7 +1060,7 @@
 
   document.addEventListener("click", function (e) {
     var t = e.target.closest ? e.target.closest("[data-act],[data-vote],[data-tab],"
-      + "[data-version],[data-cite],#copy,#refresh") : null;
+      + "[data-version],[data-cite],#copy,#refresh,#connect,#sendtx") : null;
     if (!t) { return; }
     if (t.hasAttribute("data-act")) { openForm(t.getAttribute("data-act")); return; }
     if (t.hasAttribute("data-vote")) {
@@ -911,6 +1079,8 @@
       return;
     }
     if (t.id === "refresh") { load(true); return; }
+    if (t.id === "connect") { connectWallet()["catch"](function () {}); return; }
+    if (t.id === "sendtx") { sendTx(); return; }
     if (t.id === "copy") {
       var text = buildCommand();
       var done = function () {
@@ -959,6 +1129,14 @@
 
   // ---- boot ---------------------------------------------------------------
 
+  if (window.ethereum && window.ethereum.on) {
+    window.ethereum.on("accountsChanged", function (accounts) {
+      S.wallet.address = accounts && accounts[0] ? accounts[0] : "";
+      S.wallet.err = "";
+      paintWallet();
+      paintKeys();
+    });
+  }
   render();
   load();
   setInterval(paintStatus, 1000);
