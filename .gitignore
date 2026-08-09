@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 node_modules/
+.vercel/
 playwright-report/
 test-results/
 output/
