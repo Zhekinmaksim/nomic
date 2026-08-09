@@ -38,19 +38,21 @@ genlayer commands without running anything.
 """
 
 import argparse
+import ast
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
 import textwrap
 
 # The genlayer CLI takes `genlayer write [options] <address> <method>` and
-# `genlayer call [options] <address> <method>`. Method arguments are appended
-# after the method name. If a future CLI release moves them behind a flag,
-# change ARG_STYLE to "flag" and nothing else needs touching.
-ARG_STYLE = "positional"  # "positional" or "flag"
+# `genlayer call [options] <address> <method>`. Current Bradbury CLI expects
+# method arguments behind `--args`; if a future release changes this, this is
+# the only switch that should need touching.
+ARG_STYLE = "flag"  # "positional" or "flag"
 
 VERDICT_MARK = {
     "LEGAL": "legal",
@@ -149,15 +151,83 @@ def run(mode: str, method: str, args: list, show: bool) -> object:
 def parse_output(raw: str) -> object:
     """The CLI prints human readable text around any JSON payload."""
     text = raw.strip()
-    for opener, closer in (("{", "}"), ("[", "]")):
-        start = text.find(opener)
-        end = text.rfind(closer)
-        if start != -1 and end > start:
+    payload = extract_payload(text)
+    if payload:
+        try:
+            return json.loads(payload)
+        except json.JSONDecodeError:
             try:
-                return json.loads(text[start : end + 1])
-            except json.JSONDecodeError:
-                continue
+                return parse_relaxed_object(payload)
+            except (SyntaxError, ValueError):
+                pass
     return text
+
+
+def extract_payload(text: str) -> str:
+    marker = text.find("Result:")
+    haystack = text[marker + len("Result:") :] if marker != -1 else text
+    for idx, ch in enumerate(haystack):
+        if ch == "{":
+            end = haystack.rfind("}")
+            return haystack[idx : end + 1] if end > idx else ""
+        if ch == "[":
+            end = haystack.rfind("]")
+            return haystack[idx : end + 1] if end > idx else ""
+    return ""
+
+
+def parse_relaxed_object(payload: str) -> object:
+    """Parse the JS-ish object literal printed by current GenLayer CLI calls."""
+    quoted = re.sub(
+        r"([{\[,]\s*)([A-Za-z_][A-Za-z0-9_]*)\s*:",
+        r'\1"\2":',
+        payload,
+    )
+    return ast.literal_eval(replace_js_atoms(quoted))
+
+
+def replace_js_atoms(source: str) -> str:
+    """Translate true/false/null outside strings for ast.literal_eval."""
+    out = []
+    i = 0
+    quote = ""
+    escaped = False
+    while i < len(source):
+        ch = source[i]
+        if quote:
+            out.append(ch)
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == quote:
+                quote = ""
+            i += 1
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+            out.append(ch)
+            i += 1
+            continue
+        replaced = False
+        for word, value in (("true", "True"), ("false", "False"), ("null", "None")):
+            end = i + len(word)
+            before = source[i - 1] if i else ""
+            after = source[end] if end < len(source) else ""
+            if (
+                source.startswith(word, i)
+                and not (before.isalnum() or before == "_")
+                and not (after.isalnum() or after == "_")
+            ):
+                out.append(value)
+                i = end
+                replaced = True
+                break
+        if replaced:
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
 
 
 # ---------------------------------------------------------------------------

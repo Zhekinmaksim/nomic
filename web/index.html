@@ -171,7 +171,8 @@
   // ---- configuration ------------------------------------------------------
 
   var PARAMS = new URLSearchParams(location.search);
-  var ADDRESS = PARAMS.get("address") || "";
+  var DEFAULT_ADDRESS = "0xFed4f470190288dBAC2D201CE1590cD2d954C183";
+  var ADDRESS = PARAMS.get("address") || DEFAULT_ADDRESS;
   var CHAIN = PARAMS.get("chain") || "bradbury";
   var POLL_SECONDS = Math.max(5, Number(PARAMS.get("poll") || 20));
   var START_TAB = PARAMS.get("tab") === "diff" ? "diff" : "rules";

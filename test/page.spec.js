@@ -48,19 +48,23 @@ test("terminal page renders the fallback game and builds CLI commands", async ({
     await page.goto(productionUrl || server.url);
 
     await expect(page.locator("#source")).toHaveText("CONTRACT: SNAPSHOT");
-    await expect(page.locator("#phase")).toHaveText("HELD");
-    await expect(page.locator("#says")).toContainText("proposal #1 decides it");
+    await expect(page.locator("#phase")).toHaveText("PLAY");
+    await expect(page.locator("#says")).toContainText("Alice to move");
     await expect(page.locator("#roster")).toContainText("Alice");
-    await expect(page.locator("#queue")).toContainText("CLARIFICATION");
-    await expect(page.locator("#log")).toContainText("UNDETERMINED");
-    await expect(page.locator("#log")).toContainText("no rule");
+    await expect(page.locator("#roster")).toContainText("TO MOVE");
+    await expect(page.locator("#queue")).toContainText("Nothing to vote on");
+    await expect(page.locator("#log")).toContainText("No moves yet");
 
-    await page.getByRole("button", { name: /PF1 VOTE/ }).click();
-    await expect(page.locator("#command")).toHaveText("python3 cli/nomic.py vote 1 yes");
+    await page.getByRole("button", { name: /PF1 MOVE/ }).click();
+    await expect(page.locator("#command")).toHaveText(
+      'python3 cli/nomic.py move "I claim four points." --claim 4 --clarify "A claim of four points on your own turn is legal."'
+    );
 
     await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: /PF2 RESOLVE/ }).click();
-    await expect(page.locator("#command")).toHaveText("python3 cli/nomic.py resolve 1");
+    await page.getByRole("button", { name: /PF2 PROPOSE/ }).click();
+    await expect(page.locator("#command")).toHaveText(
+      'python3 cli/nomic.py propose enact "A player may not claim the same number of points twice in a row."'
+    );
 
     await page.locator("#tabrules").click();
     await page.locator("#query").fill("immutable");

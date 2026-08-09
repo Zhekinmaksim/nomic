@@ -146,6 +146,7 @@ EFFECT_PASS = "PASS"
 EFFECT_KINDS = (EFFECT_NOTE, EFFECT_CLAIM, EFFECT_PASS)
 
 PARAMS = ("victory_score", "max_claim", "vote_threshold", "max_rules")
+ZERO_ADDRESS = Address("0x0000000000000000000000000000000000000000")
 
 
 # ---------------------------------------------------------------------------
@@ -525,7 +526,7 @@ class Nomic(gl.Contract):
         self.turn_index = u32(0)
         self.phase = PHASE_PLAY
         self.ending = ""
-        self.winner = Address.ZERO
+        self.winner = ZERO_ADDRESS
         self.broken_by_proposal = u32(0)
 
         self.victory_score = u32(100)
@@ -562,7 +563,7 @@ class Nomic(gl.Contract):
             )
         )
         self.versions.append(
-            VersionRec(u32(1), "genesis", Address.ZERO, str(self.rulebook_hash))
+            VersionRec(u32(1), "genesis", ZERO_ADDRESS, str(self.rulebook_hash))
         )
 
     # -- internal reads -----------------------------------------------------
@@ -644,7 +645,7 @@ class Nomic(gl.Contract):
 
     def _current_player(self) -> Address:
         if len(self.players) == 0:
-            return Address.ZERO
+            return ZERO_ADDRESS
         return self.players[int(self.turn_index) % len(self.players)]
 
     def _advance_turn(self) -> None:

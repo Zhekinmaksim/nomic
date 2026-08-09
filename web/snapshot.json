@@ -1,4 +1,4 @@
-window.NOMIC_FALLBACK = {
+{
   "state": {
     "broken_by_proposal": 0,
     "ending": "",
@@ -129,4 +129,4 @@ window.NOMIC_FALLBACK = {
       "version": 1
     }
   ]
-};
+}

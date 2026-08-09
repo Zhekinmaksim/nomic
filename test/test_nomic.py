@@ -5,6 +5,7 @@ Run with: python3 test/test_nomic.py
 
 import sys
 import pathlib
+import importlib.util
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
@@ -561,6 +562,49 @@ def test_prompt_size_stays_inside_the_stated_budget():
     print("      genesis prompt: " + str(len(prompt)) + " characters")
 
 
+def test_cli_parses_genlayer_object_literal():
+    root = pathlib.Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location("cli_nomic", root / "cli" / "nomic.py")
+    cli_nomic = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cli_nomic)
+
+    out = cli_nomic.parse_output(
+        """- Calling method get_state on contract at 0xabc...
+
+Result:
+{
+  rulebook_version: 1,
+  active: false,
+  turn: '',
+  note: 'the word true stays inside strings',
+  params: { max_claim: 6 },
+  players: null
+}
+
+✔ Read operation successfully executed
+"""
+    )
+    assert out["rulebook_version"] == 1
+    assert out["active"] is False
+    assert out["note"] == "the word true stays inside strings"
+    assert out["params"]["max_claim"] == 6
+    assert out["players"] is None
+
+    rules = cli_nomic.parse_output(
+        """[genlayer-js] warning
+- Calling method get_rulebook on contract at 0xabc...
+
+Result:
+[
+  { id: 101, text: 'Rule one', immutable: true },
+  { id: 201, text: 'Rule two', immutable: false }
+]
+"""
+    )
+    assert rules[0]["id"] == 101
+    assert rules[1]["immutable"] is False
+
+
 # ---------------------------------------------------------------------------
 
 TESTS = [
@@ -598,6 +642,7 @@ TESTS = [
     ("consensus sees four fields", test_consensus_only_ever_sees_four_fields),
     ("prompt carries hash and instructions", test_prompt_contains_the_hash_and_the_undetermined_instruction),
     ("prompt size inside budget", test_prompt_size_stays_inside_the_stated_budget),
+    ("CLI parses GenLayer object literals", test_cli_parses_genlayer_object_literal),
 ]
 
 
