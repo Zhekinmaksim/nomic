@@ -1,0 +1,14 @@
+{
+  "name": "nomic-genlayer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "python3 test/test_nomic.py && npm run test:page",
+    "test:contract": "python3 test/test_nomic.py",
+    "test:page": "playwright test test/page.spec.js --reporter=line"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}

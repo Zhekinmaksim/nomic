@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NOMIC :: GENLAYER TESTNET BRADBURY</title>
+<meta name="description" content="NOMIC on GenLayer, a VT100 terminal frontend. An Intelligent Contract judges every move against rule text the players wrote after the contract was deployed.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' fill='%23060A06'/%3E%3Ctext x='12' y='17' font-family='monospace' font-size='15' fill='%234CEF60' text-anchor='middle'%3EN%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<style>
+  /* VT323 has a small x-height, so it reads far smaller than its point size.
+     Every font-size below is in rem, and this one rule sets them all: the
+     terminal grows with the display instead of sitting at a fixed pixel size. */
+  html { background: #000; -webkit-text-size-adjust: 100%; font-size: clamp(19px, 1.25vw, 23px); }
+  body { margin: 0; background: #060A06; color: #4CEF60; font-family: "VT323","Courier New",ui-monospace,monospace; font-size: 1.1875rem; line-height: 1.32; letter-spacing: 0.01em; }
+  a { color: #C9FFD1; text-decoration: none; border-bottom: 1px dotted #2C7A3A; }
+  a:hover { color: #FFFFFF; border-bottom-style: solid; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid #4CEF60; outline-offset: 1px; }
+  summary::-webkit-details-marker { display: none; }
+  summary { list-style: none; }
+  ::selection { background: #4CEF60; color: #060A06; }
+  @keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0.08; } }
+  [data-blink] { animation: blink 1.1s steps(1,end) infinite; }
+  @media (prefers-reduced-motion: reduce) { [data-blink] { animation: none !important; } }
+  [hidden] { display: none !important; }
+
+  .cap { position: absolute; top: -0.72em; left: 11px; background: #060A06; padding: 0 7px; font-size: 1.125rem; letter-spacing: 0.12em; color: #C9FFD1; }
+  .cap span { color: #4FB35F; letter-spacing: 0; }
+  .box { border: 1px solid #2C7A3A; padding: 18px 14px 14px; margin: 22px 0 0; position: relative; }
+  .roster th { text-align: left; font-weight: normal; color: #4FB35F; letter-spacing: 0.1em; padding: 0 12px 4px 0; border-bottom: 1px solid #2C7A3A; }
+  .roster td { padding: 3px 12px 3px 0; white-space: nowrap; }
+  .fld { background: #0C140C; border: 1px solid #2C7A3A; padding: 3px 7px; width: 100%; font-size: 1.1875rem; }
+  .fld:focus { border-color: #4CEF60; outline: none; }
+  .panes { display: grid; grid-template-columns: minmax(0, 1fr) 27rem; gap: 0 22px; align-items: start; }
+  .book { position: sticky; top: 2.6rem; max-height: calc(100vh - 7rem); display: flex; flex-direction: column; }
+  .tabbtn { flex: 1 1 0; border: 1px solid #2C7A3A; padding: 1px 8px; cursor: pointer; letter-spacing: 0.1em; font-size: 1.125rem; }
+  .keybtn { background: none; border: none; padding: 0; cursor: pointer; color: #060A06; }
+  .keybtn u { text-underline-offset: 2px; }
+  .keybtn:hover { text-decoration: underline; }
+
+  @media (max-width: 1180px) {
+    .panes { grid-template-columns: minmax(0, 1fr); }
+    .book { position: static; max-height: none; }
+    #rulelist, #diffpane { max-height: 58vh; }
+  }
+  @media (max-width: 620px) {
+    #banner { font-size: 0.68rem; }
+    #ident, #srcbox { margin-left: 0 !important; text-align: left !important; }
+    .ev summary { grid-template-columns: 26px minmax(0, 1fr) !important; }
+    .ev summary .verd { grid-column: 2; }
+    .ev .detail { padding-left: 0 !important; }
+    .ev .detail dl { grid-template-columns: minmax(0, 1fr) !important; }
+  }
+</style>
+</head>
+<body>
+
+<div style="position: relative; min-height: 100vh; padding: 0 0 52px; background: #060A06; container-type: inline-size;">
+
+  <div id="scan" aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none; z-index: 200; background: repeating-linear-gradient(rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.26) 2px 4px), radial-gradient(120% 100% at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.5) 100%);"></div>
+
+  <div style="max-width: 92rem; margin: 0 auto; padding: 0 16px;">
+
+    <div style="display: flex; align-items: flex-end; gap: 26px; flex-wrap: wrap; padding: 20px 0 12px;">
+      <pre id="banner" aria-label="NOMIC" style="margin: 0; font-size: 0.8125rem; line-height: 1.05; letter-spacing: 0.09em; white-space: pre; color: #C9FFD1;">#   #  ###  #   # #####  ####
+##  # #   # ## ##   #   #    
+# # # #   # # # #   #   #    
+#  ## #   # #   #   #   #    
+#   #  ###  #   # #####  ####</pre>
+      <div id="ident" style="font-size: 1.0625rem; line-height: 1.45; padding-bottom: 2px;">SELF AMENDING RULE ENGINE
+        <span style="display: block; color: #4FB35F;">AFTER SUBER, 1982</span>
+      </div>
+      <div id="srcbox" style="margin-left: auto; text-align: right; font-size: 1.0625rem; line-height: 1.45;">
+        <span style="color: #C9FFD1;">GENLAYER TESTNET BRADBURY</span><br>
+        <span style="color: #4FB35F;" id="source">CONTRACT: NOT CONNECTED</span>
+      </div>
+    </div>
+
+    <div style="position: sticky; top: 0; z-index: 60; background: #4CEF60; color: #060A06; padding: 4px 12px; display: flex; gap: 6px 20px; flex-wrap: wrap; align-items: baseline; font-size: 1.1875rem;">
+      <span role="status" aria-live="polite" style="display: contents;">
+        <span><span style="opacity: 0.66;">STATE</span> <b id="phase">LOADING</b></span>
+        <b id="heldstar" data-blink="1" hidden>*</b>
+        <span style="flex: 1 1 auto;" id="says">reading the game</span>
+      </span>
+      <span><span style="opacity: 0.66;">RULEBOOK</span> <b id="ver">v?</b></span>
+      <span><span style="opacity: 0.66;">HASH</span> <b id="hash">--------</b></span>
+      <span id="fresh" aria-live="off"></span>
+    </div>
+
+    <div class="box">
+      <span class="cap">PLAYERS <span id="rostercount"></span></span>
+      <table style="width: 100%; border-collapse: collapse; font-size: 1.1875rem;" class="roster">
+        <tbody id="roster"></tbody>
+      </table>
+    </div>
+
+    <section id="formsec" hidden style="margin: 22px 0 0; border: 1px solid #2C7A3A; padding: 14px 14px 16px;">
+      <h2 id="formtitle" style="margin: 0 0 2px; font-size: 1.25rem; letter-spacing: 0.1em; color: #C9FFD1;"></h2>
+      <p id="formwhy" style="margin: 0 0 14px; font-size: 1.125rem; color: #8FE79C; max-width: 88ch; text-wrap: pretty;"></p>
+      <div id="formfields" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 20px;"></div>
+      <div style="margin-top: 16px; border-top: 1px solid #2C7A3A; padding-top: 12px; display: flex; align-items: flex-start; gap: 10px;">
+        <span style="color: #C9FFD1; flex: none;">nomic&gt;</span>
+        <code id="command" style="flex: 1 1 auto; word-break: break-all; min-width: 0;"></code>
+        <span data-blink="1" style="display: inline-block; width: 0.55em; height: 1em; background: #4CEF60; vertical-align: -0.15em;"></span>
+        <button type="button" id="copy" style="flex: none; background: #4CEF60; color: #060A06; border: none; padding: 1px 12px; cursor: pointer; font-size: 1.125rem; letter-spacing: 0.08em;">COPY</button>
+      </div>
+    </section>
+
+    <div class="panes">
+
+      <div>
+        <div class="box">
+          <span class="cap">ON THE TABLE <span id="queuecount">(0)</span></span>
+          <div id="queue"></div>
+        </div>
+
+        <div class="box">
+          <span class="cap">GAME LOG <span id="logcount">(0)</span></span>
+          <div id="log"></div>
+        </div>
+      </div>
+
+      <div class="box book">
+        <span class="cap">RULEBOOK <span id="rulecount">(0)</span></span>
+        <div style="display: flex; gap: 0; margin-bottom: 10px;">
+          <button type="button" class="tabbtn" data-tab="rules" id="tabrules">IN FORCE</button>
+          <button type="button" class="tabbtn" data-tab="diff" id="tabdiff" style="border-left: none;">CHANGES</button>
+        </div>
+
+        <div id="rulespane" style="display: flex; flex-direction: column; min-height: 0;">
+          <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px;">
+            <input type="search" id="query" placeholder="search" aria-label="Search the rules" class="fld" style="flex: 1 1 130px; padding: 2px 8px; min-width: 0;">
+            <label style="color: #8FE79C; display: flex; align-items: center; gap: 5px;"><input type="checkbox" id="showgone"> repealed</label>
+          </div>
+          <div id="rulelist" style="overflow: auto; padding-right: 4px;"></div>
+        </div>
+
+        <div id="diffpane" hidden style="overflow: auto; padding-right: 4px;">
+          <div id="versiontabs" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px;"></div>
+          <p id="diffhead" style="margin: 0 0 4px; color: #C9FFD1; letter-spacing: 0.08em;"></p>
+          <p id="diffmeta" style="margin: 0 0 12px; font-size: 1.0625rem; color: #4FB35F; word-break: break-all;"></p>
+          <div id="diffchanges"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <p id="sig" style="margin: 24px 0 0; color: #4FB35F; font-size: 1.0625rem;"></p>
+    <p id="budget" style="margin: 4px 0 0; color: #4FB35F; font-size: 1.0625rem; white-space: pre;"></p>
+    <p style="margin: 10px 0 0; color: #4FB35F; font-size: 1.0625rem;">SOURCE <a href="https://github.com/Zhekinmaksim/nomic">github.com/Zhekinmaksim/nomic</a> &nbsp;//&nbsp; BUILT BY <span style="color: #C9FFD1;">ZER&#x398; M&#x39B;XX</span> @0maxxdev</p>
+
+  </div>
+
+  <div style="position: sticky; left: 0; right: 0; bottom: 0; z-index: 201; background: #4CEF60; color: #060A06; padding: 4px 16px; display: flex; gap: 4px 18px; flex-wrap: wrap; font-size: 1.125rem;">
+    <span id="keys" style="display: contents;"></span>
+    <span style="flex: 1 1 auto;"></span>
+    <button type="button" class="keybtn" id="refresh"><u>R</u> <span id="refreshlabel">REFRESH</span></button>
+    <span>ESC CLOSE</span>
+  </div>
+
+</div>
+
+<script src="snapshot.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // ---- configuration ------------------------------------------------------
+
+  var PARAMS = new URLSearchParams(location.search);
+  var ADDRESS = PARAMS.get("address") || "";
+  var CHAIN = PARAMS.get("chain") || "bradbury";
+  var POLL_SECONDS = Math.max(5, Number(PARAMS.get("poll") || 20));
+  var START_TAB = PARAMS.get("tab") === "diff" ? "diff" : "rules";
+  var SCANLINES = PARAMS.get("scanlines") !== "0";
+
+  var S = {
+    data: null, err: null, loadedAt: 0, loading: true,
+    form: null, values: {}, copied: false,
+    tab: START_TAB, query: "", showGone: false, highlight: 0, version: 0
+  };
+
+  function $(id) { return document.getElementById(id); }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function sh(s) {
+    return '"' + String(s == null ? "" : s).replace(/(["\\$`])/g, "\\$1") + '"';
+  }
+
+  function gauge(pct, width) {
+    var n = Math.max(0, Math.min(width, Math.round((pct / 100) * width)));
+    return "[" + new Array(n + 1).join("#") + new Array(width - n + 1).join(".") + "]";
+  }
+
+  function words(s) {
+    return String(s || "").split(/(\s+)/).filter(function (x) { return x.length; });
+  }
+
+  // Longest common subsequence over words, so a rewritten rule shows what
+  // actually changed rather than two paragraphs side by side.
+  function wordDiff(a, b) {
+    var A = words(a), B = words(b), n = A.length, m = B.length, i, j;
+    var dp = [];
+    for (i = 0; i <= n; i++) { dp.push(new Array(m + 1).fill(0)); }
+    for (i = n - 1; i >= 0; i--) {
+      for (j = m - 1; j >= 0; j--) {
+        dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1
+          : Math.max(dp[i + 1][j], dp[i][j + 1]);
+      }
+    }
+    var before = [], after = [];
+    i = 0; j = 0;
+    while (i < n && j < m) {
+      if (A[i] === B[j]) {
+        before.push({ t: A[i], hit: false });
+        after.push({ t: B[j], hit: false });
+        i++; j++;
+      } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+        before.push({ t: A[i], hit: true }); i++;
+      } else {
+        after.push({ t: B[j], hit: true }); j++;
+      }
+    }
+    while (i < n) { before.push({ t: A[i], hit: true }); i++; }
+    while (j < m) { after.push({ t: B[j], hit: true }); j++; }
+    return { before: before, after: after };
+  }
+
+  // ---- forms --------------------------------------------------------------
+
+  var FORMS = {
+    move: {
+      label: "MOVE", title: "MAKE A MOVE",
+      why: "Say what you are doing and what it does to the game. The clarifying rule is "
+        + "required: if the judge cannot settle your move, that rule goes to a vote.",
+      fields: [
+        { name: "text", label: "YOUR MOVE", type: "textarea", def: "I claim four points." },
+        { name: "effect", label: "DECLARED EFFECT", type: "select",
+          options: ["NOTE", "CLAIM", "PASS"], def: "CLAIM" },
+        { name: "claim", label: "POINTS CLAIMED", type: "number", def: "4" },
+        { name: "clarify", label: "CLARIFYING RULE, IF THE JUDGE CANNOT SETTLE IT",
+          type: "textarea", def: "A claim of four points on your own turn is legal." }
+      ],
+      build: function (v) {
+        var c = "move " + sh(v.text);
+        if (v.effect === "CLAIM") { c += " --claim " + (v.claim || 1); }
+        if (v.effect === "PASS") { c += " --pass"; }
+        return c + " --clarify " + sh(v.clarify);
+      }
+    },
+    propose: {
+      label: "PROPOSE", title: "PROPOSE AN AMENDMENT",
+      why: "The proposal is judged for legality first. Only a legal proposal reaches a vote. "
+        + "Rules 202 to 205 hold a number the contract also enforces, so change those with "
+        + "setparam and the text follows the number.",
+      fields: [
+        { name: "kind", label: "KIND", type: "select",
+          options: ["enact", "repeal", "amend", "transmute", "setparam"], def: "enact" },
+        { name: "rule", label: "RULE ACTED ON", type: "number", def: "0" },
+        { name: "text", label: "NEW RULE TEXT, OR THE REASON", type: "textarea",
+          def: "A player may not claim the same number of points twice in a row." },
+        { name: "param", label: "PARAMETER, FOR SETPARAM", type: "select",
+          options: ["", "victory_score", "max_claim", "vote_threshold", "max_rules"], def: "" },
+        { name: "value", label: "NEW VALUE, FOR SETPARAM", type: "number", def: "0" }
+      ],
+      build: function (v) {
+        var c = "propose " + (v.kind || "enact");
+        if (v.kind === "setparam") {
+          return c + " --param " + (v.param || "max_claim") + " --value " + (v.value || 1);
+        }
+        c += " " + sh(v.text);
+        if (v.rule && Number(v.rule) > 0) { c += " --rule " + v.rule; }
+        return c;
+      }
+    },
+    vote: {
+      label: "VOTE", title: "VOTE ON AN OPEN PROPOSAL",
+      why: "Any player may vote at any time. A vote costs no inference, it is a plain tally.",
+      fields: [
+        { name: "id", label: "PROPOSAL", type: "select", options: [], def: "" },
+        { name: "choice", label: "YOUR VOTE", type: "select", options: ["yes", "no"], def: "yes" }
+      ],
+      build: function (v) { return "vote " + (v.id || 1) + " " + (v.choice || "yes"); }
+    },
+    resolve: {
+      label: "RESOLVE", title: "RESOLVE A PROPOSAL",
+      why: "Tallies the votes and applies the amendment. Deterministic end to end, including "
+        + "the ending under rule 105 if the amendment turns out to be one the contract cannot "
+        + "execute.",
+      fields: [{ name: "id", label: "PROPOSAL", type: "select", options: [], def: "" }],
+      build: function (v) { return "resolve " + (v.id || 1); }
+    },
+    win: {
+      label: "CLAIM WIN", title: "CLAIM THE WIN",
+      why: "The winning condition is a mutable rule, so the judge reads the rulebook as it "
+        + "stands to decide whether you have met it.",
+      fields: [{ name: "text", label: "GROUND FOR YOUR CLAIM", type: "textarea",
+        def: "I hold one hundred points." }],
+      build: function (v) { return "win " + sh(v.text); }
+    }
+  };
+
+  // ---- loading: live, then snapshot, then the bundled fallback ------------
+
+  function cap(p, ms) {
+    return Promise.race([p, new Promise(function (_, rj) {
+      setTimeout(function () { rj(new Error("timeout")); }, ms);
+    })]);
+  }
+
+  function readLive() {
+    if (!ADDRESS) { return Promise.reject(new Error("no address")); }
+    return cap(Promise.all([
+      import("https://esm.sh/genlayer-js"),
+      import("https://esm.sh/genlayer-js/chains")
+    ]).then(function (m) {
+      var sdk = m[0], chains = m[1];
+      var chain = chains[CHAIN] || chains.bradbury || chains.studionet || chains.simulator
+        || Object.keys(chains).map(function (k) { return chains[k]; })
+          .filter(function (c) { return c && c.id; })[0];
+      var client = sdk.createClient({ chain: chain, account: sdk.createAccount() });
+      function read(fn) {
+        return client.readContract({ address: ADDRESS, functionName: fn, args: [] });
+      }
+      return Promise.all([
+        read("get_state"), read("get_players"), read("get_rulebook"),
+        read("get_proposals"), read("get_moves"), read("get_versions")
+      ]).then(function (r) {
+        return { state: r[0], players: r[1], rules: r[2], proposals: r[3],
+                 moves: r[4], versions: r[5] || [], origin: "live" };
+      });
+    }), 8000);
+  }
+
+  function readSnapshot() {
+    return cap(fetch("./snapshot.json", { cache: "no-store" }).then(function (res) {
+      if (!res.ok) { throw new Error("no snapshot"); }
+      return res.json();
+    }).then(function (d) { d.origin = "snapshot"; return d; }), 5000);
+  }
+
+  // a classic script tag loads under file:// where fetch does not
+  function readFallback() {
+    if (!window.NOMIC_FALLBACK) { throw new Error("no data"); }
+    var d = JSON.parse(JSON.stringify(window.NOMIC_FALLBACK));
+    d.origin = "snapshot";
+    return d;
+  }
+
+  function load(quiet) {
+    if (!quiet) { S.loading = true; paintStatus(); }
+    return readLive()["catch"](readSnapshot)["catch"](readFallback)
+      .then(function (d) {
+        d.players = d.players || [];
+        d.proposals = d.proposals || [];
+        d.moves = d.moves || [];
+        d.rules = d.rules || [];
+        d.versions = d.versions || [];
+        S.data = d;
+        S.err = null;
+        S.loading = false;
+        S.loadedAt = Date.now();
+        if (!S.version && d.versions.length) {
+          S.version = d.versions[d.versions.length - 1].version;
+        }
+        render();
+      })["catch"](function (e) {
+        S.err = String((e && e.message) || e);
+        S.loading = false;
+        render();
+      });
+  }
+
+  // ---- derived ------------------------------------------------------------
+
+  function openProposals() {
+    return S.data ? S.data.proposals.filter(function (p) { return p.status === "OPEN"; }) : [];
+  }
+
+  function actions() {
+    if (!S.data) { return []; }
+    var open = openProposals();
+    var a = [];
+    if (S.data.state.phase === "PLAY") { a.push("move", "propose"); }
+    if (open.length) { a.push("vote", "resolve"); }
+    if (S.data.state.phase === "PLAY" && !open.length) { a.push("win"); }
+    if (S.data.state.phase === "OVER") { a = []; }
+    return a.slice(0, 4);
+  }
+
+  function openForm(name, preset) {
+    var f = FORMS[name];
+    if (!f) { return; }
+    if (S.form === name && !preset) { S.form = null; paintForm(); return; }
+    var values = {};
+    var ids = openProposals().map(function (p) { return String(p.id); });
+    f.fields.forEach(function (fl) {
+      values[fl.name] = fl.name === "id" ? (ids[0] || "1") : fl.def;
+    });
+    if (preset) {
+      Object.keys(preset).forEach(function (k) { values[k] = preset[k]; });
+    }
+    S.form = name;
+    S.values = values;
+    S.copied = false;
+    paintForm();
+    if ($("formsec").scrollIntoView) {
+      $("formsec").scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  function jumpToRule(id) {
+    S.tab = "rules";
+    S.highlight = id;
+    paintPanel();
+    var list = $("rulelist"), el = $("r" + id);
+    if (list && el) { list.scrollTop = el.offsetTop - list.offsetTop - 6; }
+  }
+
+  // ---- painting -----------------------------------------------------------
+
+  function paintStatus() {
+    var d = S.data;
+    $("scan").hidden = !SCANLINES;
+    $("refreshlabel").textContent = S.loading ? "READING" : "REFRESH";
+
+    if (!d) {
+      $("phase").textContent = S.err ? "NO GAME" : "LOADING";
+      $("says").textContent = S.err ? "nothing loaded: " + S.err : "reading the game";
+      $("heldstar").hidden = true;
+      return;
+    }
+    var st = d.state;
+    var age = Math.max(0, Math.round((Date.now() - S.loadedAt) / 1000));
+    var stale = age > 90;
+
+    $("source").textContent = d.origin === "live" ? "CONTRACT: LIVE"
+      : d.origin === "snapshot" ? "CONTRACT: SNAPSHOT" : "CONTRACT: DEMO DATA";
+    $("ver").textContent = "v" + st.rulebook_version;
+    $("hash").textContent = String(st.rulebook_hash).slice(0, 8).toUpperCase();
+
+    $("heldstar").hidden = st.phase !== "CLARIFY";
+    if (st.phase === "OVER") {
+      $("phase").textContent = "OVER";
+      $("says").textContent = st.ending || "the game is over";
+    } else if (st.phase === "CLARIFY") {
+      $("phase").textContent = "HELD";
+      $("says").textContent = "judge could not settle the last move, proposal #"
+        + st.open_clarification + " decides it";
+    } else {
+      $("phase").textContent = "PLAY";
+      $("says").textContent = (st.turn || "nobody") + " to move";
+    }
+
+    var f = $("fresh");
+    f.textContent = S.loading ? "READING"
+      : stale ? "STALE, " + age + "S OLD" : "UPDATED " + age + "S AGO";
+    if (stale && !S.loading) {
+      f.setAttribute("style", "background: #060A06; color: #4CEF60; padding: 0 6px;");
+    } else {
+      f.setAttribute("style", "opacity: 0.66;");
+    }
+
+    var chars = st.limits.rulebook_chars, capChars = st.limits.hard_max_rulebook_chars;
+    $("sig").textContent = "80/132 COL  //  " + st.rules_in_force + " OF "
+      + st.params.max_rules + " RULES IN FORCE  //  HASHED WITH "
+      + String(st.hash_algo).toUpperCase();
+    $("budget").textContent = "PROMPT BUDGET " + gauge((chars / capChars) * 100, 30)
+      + "  " + chars + " / " + capChars + " CHARS";
+  }
+
+  function paintRoster() {
+    var d = S.data;
+    var head = '<tr><th>NO</th><th style="width: 30%;">PLAYER</th><th>SCORE</th>'
+      + "<th>PROGRESS</th><th>STATE</th></tr>";
+    if (!d || !d.players.length) {
+      $("rostercount").textContent = "";
+      $("roster").innerHTML = head
+        + '<tr><td colspan="5" style="color: #4FB35F;">no players seated</td></tr>';
+      return;
+    }
+    var st = d.state;
+    var goal = st.params.victory_score || 1;
+    $("rostercount").textContent = "(" + d.players.length + ")";
+    $("roster").innerHTML = head + d.players.map(function (p, i) {
+      var won = st.phase === "OVER" && st.winner_name === p.name;
+      var up = p.to_move && st.phase !== "OVER";
+      var state = won ? "WINNER" : up ? (st.phase === "CLARIFY" ? "HELD" : "TO MOVE") : "waiting";
+      var cell = (won || up)
+        ? '<span style="background: #4CEF60; color: #060A06; padding: 0 6px;">' + state + "</span>"
+        : '<span style="color: #4FB35F;">' + state + "</span>";
+      return "<tr>"
+        + '<td style="color: #4FB35F;">' + (i + 1) + "</td>"
+        + '<td style="white-space: normal;">' + esc(p.name) + "</td>"
+        + "<td>" + p.score + '<span style="color: #4FB35F;"> / ' + goal + "</span></td>"
+        + '<td style="white-space: pre; color: #8FE79C;">'
+        + gauge((p.score / goal) * 100, 14) + "</td>"
+        + "<td>" + cell + "</td></tr>";
+    }).join("");
+  }
+
+  function fieldWarn(fl, val) {
+    var st = S.data && S.data.state;
+    if (!st) { return ""; }
+    if (fl.name === "text" && S.form === "propose"
+        && val.length > (st.limits.max_rule_chars || 500)) {
+      return val.length + " CHARS, OVER THE " + (st.limits.max_rule_chars || 500)
+        + " CHAR LIMIT";
+    }
+    if (fl.name === "claim" && S.form === "move" && Number(val) > st.params.max_claim) {
+      return "OVER THE " + st.params.max_claim + " POINT CAP IN RULE 202";
+    }
+    return "";
+  }
+
+  function buildCommand() {
+    if (!S.form) { return ""; }
+    return "python3 cli/nomic.py " + FORMS[S.form].build(S.values);
+  }
+
+  function paintForm() {
+    var sec = $("formsec");
+    if (!S.form) { sec.hidden = true; paintKeys(); return; }
+    var f = FORMS[S.form];
+    sec.hidden = false;
+    $("formtitle").textContent = f.title;
+    $("formwhy").textContent = f.why;
+
+    var ids = openProposals().map(function (p) { return String(p.id); });
+    $("formfields").innerHTML = f.fields.map(function (fl) {
+      var val = S.values[fl.name] == null ? "" : S.values[fl.name];
+      var span = fl.type === "textarea" ? "1 / -1" : "auto";
+      var input;
+      if (fl.type === "select") {
+        var opts = fl.name === "id" ? (ids.length ? ids : ["1"]) : fl.options;
+        input = '<select class="fld" data-field="' + fl.name + '">' + opts.map(function (o) {
+          return '<option value="' + esc(o) + '"' + (String(o) === String(val) ? " selected" : "")
+            + ">" + (o === "" ? "none" : esc(o)) + "</option>";
+        }).join("") + "</select>";
+      } else if (fl.type === "textarea") {
+        input = '<textarea class="fld" rows="2" data-field="' + fl.name
+          + '" style="resize: vertical; min-height: 46px;">' + esc(val) + "</textarea>";
+      } else {
+        input = '<input class="fld" type="' + fl.type + '" data-field="' + fl.name
+          + '" value="' + esc(val) + '">';
+      }
+      var warn = fieldWarn(fl, String(val));
+      return '<div style="display: flex; flex-direction: column; gap: 2px; min-width: 0;'
+        + " grid-column: " + span + ';">'
+        + '<label style="font-size: 1.0625rem; color: #4FB35F; letter-spacing: 0.08em;">'
+        + esc(fl.label) + "</label>" + input
+        + '<span id="warn-' + fl.name + '" style="font-size: 1rem; color: #060A06;'
+        + ' background: #4CEF60; padding: 0 5px; align-self: flex-start;"'
+        + (warn ? "" : " hidden") + ">" + esc(warn) + "</span>"
+        + "</div>";
+    }).join("");
+
+    $("command").textContent = buildCommand();
+    $("copy").textContent = S.copied ? "COPIED" : "COPY";
+    paintKeys();
+  }
+
+  function refreshCommand() {
+    $("command").textContent = buildCommand();
+    if (!S.form) { return; }
+    FORMS[S.form].fields.forEach(function (fl) {
+      var el = $("warn-" + fl.name);
+      if (!el) { return; }
+      var warn = fieldWarn(fl, String(S.values[fl.name] == null ? "" : S.values[fl.name]));
+      el.textContent = warn;
+      el.hidden = !warn;
+    });
+  }
+
+  function paintQueue() {
+    var d = S.data;
+    if (!d) { return; }
+    var st = d.state;
+    var open = openProposals();
+    $("queuecount").textContent = "(" + open.length + ")";
+    if (!open.length) {
+      $("queue").innerHTML = '<p style="color: #8FE79C; padding: 6px 0; margin: 0;">'
+        + "Nothing to vote on. The rulebook is settled at v" + st.rulebook_version
+        + " and the game is waiting on a move.</p>";
+      return;
+    }
+    var quorum = st.quorum || Math.ceil((d.players.length || 2) / 2);
+    $("queue").innerHTML = open.map(function (p) {
+      var cast = p.yes + p.no;
+      var yesPct = cast ? Math.round((p.yes / cast) * 100) : 0;
+      var short = quorum - cast;
+      var need = short > 0
+        ? short + " more vote" + (short === 1 ? "" : "s") + " to reach quorum of " + quorum
+        : (yesPct >= st.params.vote_threshold
+            ? "PASSING at " + yesPct + "%"
+            : "failing at " + yesPct + "%, rule 204 needs " + st.params.vote_threshold + "%");
+      var ballots = p.ballots || [];
+      var voted = ballots.map(function (b) { return b.name; });
+      var lines = ballots.map(function (b) {
+        return esc(b.name) + " " + String(b.choice).toUpperCase();
+      }).concat(d.players.filter(function (pl) {
+        return voted.indexOf(pl.name) === -1;
+      }).map(function (pl) { return esc(pl.name) + " -"; }));
+
+      return '<article style="padding: 10px 0; border-bottom: 1px solid #2C7A3A;">'
+        + '<div style="display: flex; gap: 6px 12px; flex-wrap: wrap; align-items: baseline;'
+        + ' color: #8FE79C;">'
+        + '<span style="color: #C9FFD1;">#' + p.id + "</span>"
+        + "<span>" + esc(p.kind.toUpperCase()) + (p.target ? " RULE " + p.target : "") + "</span>"
+        + (p.is_clarification
+            ? '<span style="border: 1px solid #4CEF60; color: #C9FFD1; padding: 0 6px;'
+              + ' letter-spacing: 0.08em;">CLARIFICATION</span>' : "")
+        + "<span>by " + esc(p.proposer_name || "unknown") + "</span>"
+        + "<span>opened at v" + p.opened_at_version + "</span></div>"
+        + '<p style="margin: 4px 0 0; max-width: 84ch; text-wrap: pretty;">' + esc(p.text) + "</p>"
+        + '<div style="display: flex; gap: 6px 14px; flex-wrap: wrap; align-items: baseline;'
+        + ' margin-top: 5px;">'
+        + '<span style="color: #8FE79C; white-space: pre;">' + gauge(yesPct, 12) + "</span>"
+        + "<span>" + p.yes + " for, " + p.no + " against</span>"
+        + '<span style="color: #4FB35F;">' + need + "</span>"
+        + '<button type="button" data-vote="' + p.id + '" style="background: none;'
+        + ' border: 1px solid #2C7A3A; padding: 0 9px; cursor: pointer; font-size: 1.125rem;'
+        + ' letter-spacing: 0.06em; color: #4CEF60;">VOTE</button></div>'
+        + '<div style="display: flex; gap: 4px 14px; flex-wrap: wrap; margin-top: 5px;'
+        + ' font-size: 1.0625rem; color: #4FB35F;">'
+        + lines.map(function (l) { return "<span>" + l + "</span>"; }).join("")
+        + "</div></article>";
+    }).join("");
+  }
+
+  function paintLog() {
+    var d = S.data;
+    if (!d) { return; }
+    $("logcount").textContent = "(" + d.moves.length + ")";
+    if (!d.moves.length) {
+      $("log").innerHTML = '<p style="color: #8FE79C; padding: 6px 0; margin: 0;">'
+        + "No moves yet. A game starts when two players have joined and one of them moves.</p>";
+      return;
+    }
+    var total = d.state.moves || d.moves.length;
+    var windowed = total > d.moves.length
+      ? '<p style="color: #4FB35F; padding: 6px 0 0; margin: 0; font-size: 1.0625rem;">'
+        + "SHOWING THE LAST " + d.moves.length + " OF " + total
+        + " MOVES  //  older ones: python3 cli/nomic.py log --older</p>"
+      : "";
+    $("log").innerHTML = d.moves.slice().reverse().map(function (m) {
+      var v = String(m.verdict || "").toUpperCase();
+      var did = m.action === "PROPOSE" ? "proposed"
+        : m.action === "VICTORY" ? "claimed the win"
+        : m.effect_kind === "CLAIM" ? "claimed " + m.effect_value + " points"
+        : m.effect_kind === "PASS" ? "passed" : "moved";
+      var prop = m.proposal
+        ? d.proposals.filter(function (p) { return p.id === m.proposal; })[0] : null;
+      var outcome = m.outcome || m.note || "";
+      var stageA = "pinned rulebook v" + m.rulebook_version + " at "
+        + String(m.rulebook_hash).slice(0, 8) + ", " + (m.citable || 0)
+        + " citable rules, turn and effect range checked, no inference";
+      var stageB = "one inference, output normalised to rulebook_hash / verdict / rule_id / "
+        + "reasoning_hash, consensus on the first three, reasoning hash excluded as leader local";
+      var stageC = v === "LEGAL" ? "LEGAL branch: " + (outcome || "effect applied, turn passed")
+        : v === "ILLEGAL" ? "ILLEGAL branch: " + (outcome || "recorded, the turn did not pass")
+        : "UNDETERMINED branch: " + (outcome || "clarification vote opened, turn frozen");
+      var verdict = v === "LEGAL"
+        ? '<span style="letter-spacing: 0.08em; white-space: nowrap; color: #C9FFD1;'
+          + ' font-weight: bold;">LEGAL</span>'
+        : v === "ILLEGAL"
+          ? '<span style="letter-spacing: 0.08em; white-space: nowrap; color: #4FB35F;'
+            + ' text-decoration: line-through;">ILLEGAL</span>'
+          : '<span data-blink="1" style="letter-spacing: 0.08em; white-space: nowrap;'
+            + ' background: #4CEF60; color: #060A06; padding: 0 6px;">? UNDETERMINED</span>';
+
+      return '<details class="ev" id="m' + m.id + '" style="border-bottom: 1px solid #2C7A3A;'
+        + ' scroll-margin-top: 2.9rem;">'
+        + '<summary style="cursor: pointer; padding: 7px 0; display: grid;'
+        + ' grid-template-columns: 2.2rem minmax(0, 1fr) auto; gap: 10px; align-items: baseline;">'
+        + '<span style="color: #4FB35F;">' + m.id + "</span>"
+        + '<span><span style="color: #C9FFD1;">' + esc(m.player_name || "unknown") + "</span> "
+        + '<span style="color: #8FE79C;">' + did + "</span> "
+        + '<span style="display: -webkit-box; -webkit-line-clamp: 1;'
+        + ' -webkit-box-orient: vertical; overflow: hidden; max-width: 88ch;">'
+        + esc(m.text) + "</span></span>"
+        + '<span class="verd" style="display: flex; align-items: baseline; gap: 10px;'
+        + ' flex: none;">'
+        + '<a href="' + (m.rule_id ? "#r" + m.rule_id : "#") + '"'
+        + (m.rule_id ? ' data-cite="' + m.rule_id + '"' : "")
+        + ' style="color: #8FE79C; white-space: nowrap;">'
+        + (m.rule_id ? "rule " + m.rule_id : "no rule") + "</a>"
+        + verdict + "</span></summary>"
+        + '<div class="detail" style="padding: 0 0 14px 2.9rem; color: #8FE79C;">'
+        + (prop
+            ? '<p style="margin: 0 0 10px; padding-left: 12px; border-left: 1px solid #2C7A3A;'
+              + ' color: #4CEF60; max-width: 86ch; text-wrap: pretty;">'
+              + (v === "UNDETERMINED" ? "Not settled, so it went to a vote: " : "Put to a vote: ")
+              + esc(prop.text) + " (#" + prop.id + ", " + esc(String(prop.status).toLowerCase())
+              + ", " + prop.yes + " for, " + prop.no + " against)</p>"
+            : "")
+        + '<div style="display: grid; grid-template-columns: 1.5rem minmax(0, 1fr);'
+        + ' gap: 3px 10px; margin: 0 0 10px; max-width: 92ch;">'
+        + '<span style="color: #C9FFD1;">A</span><span style="color: #4CEF60;">'
+        + esc(stageA) + "</span>"
+        + '<span style="color: #C9FFD1;">B</span><span style="color: #4CEF60;">'
+        + esc(stageB) + "</span>"
+        + '<span style="color: #C9FFD1;">C</span><span style="color: #4CEF60;">'
+        + esc(stageC) + "</span></div>"
+        + '<dl style="display: grid; grid-template-columns: 11rem minmax(0, 1fr);'
+        + ' gap: 1px 12px; margin: 0;">'
+        + '<dt style="color: #4FB35F; letter-spacing: 0.06em;">JUDGED AGAINST</dt>'
+        + '<dd style="margin: 0;">rulebook v' + m.rulebook_version + "</dd>"
+        + '<dt style="color: #4FB35F; letter-spacing: 0.06em;">RULEBOOK HASH</dt>'
+        + '<dd style="margin: 0; word-break: break-all;">' + esc(m.rulebook_hash) + "</dd>"
+        + '<dt style="color: #4FB35F; letter-spacing: 0.06em;">REASONING HASH</dt>'
+        + '<dd style="margin: 0; word-break: break-all;">' + esc(m.reasoning_hash) + "</dd>"
+        + '<dt style="color: #4FB35F; letter-spacing: 0.06em;">PERMALINK</dt>'
+        + '<dd style="margin: 0;"><a href="#m' + m.id + '">m' + m.id + "</a></dd>"
+        + "</dl></div></details>";
+    }).join("") + windowed;
+  }
+
+  function paintPanel() {
+    var d = S.data;
+    var isRules = S.tab === "rules";
+    $("rulespane").hidden = !isRules;
+    $("diffpane").hidden = isRules;
+    $("tabrules").setAttribute("style",
+      "background: " + (isRules ? "#4CEF60" : "transparent")
+      + "; color: " + (isRules ? "#060A06" : "#8FE79C") + ";");
+    $("tabdiff").setAttribute("style",
+      "border-left: none; background: " + (!isRules ? "#4CEF60" : "transparent")
+      + "; color: " + (!isRules ? "#060A06" : "#8FE79C") + ";");
+    if (isRules) { paintRules(); } else { paintDiff(); }
+  }
+
+  function paintRules() {
+    var d = S.data;
+    if (!d) { return; }
+    var q = S.query.trim().toLowerCase();
+    var list = d.rules.filter(function (r) {
+      if (!r.in_force && !S.showGone) { return false; }
+      if (!q) { return true; }
+      return String(r.id).indexOf(q) === 0 || String(r.text).toLowerCase().indexOf(q) !== -1;
+    });
+    $("rulecount").textContent = "(" + list.length + ")";
+    if (!list.length) {
+      $("rulelist").innerHTML = '<p style="color: #8FE79C; padding: 6px 0; margin: 0;">'
+        + "nothing matches " + esc(q) + "</p>";
+      return;
+    }
+    $("rulelist").innerHTML = list.map(function (r) {
+      var txt = String(r.text || "");
+      var parts = [{ t: txt, hit: false }];
+      if (q && txt.toLowerCase().indexOf(q) !== -1) {
+        parts = [];
+        var rest = txt, idx;
+        while ((idx = rest.toLowerCase().indexOf(q)) !== -1) {
+          if (idx) { parts.push({ t: rest.slice(0, idx), hit: false }); }
+          parts.push({ t: rest.slice(idx, idx + q.length), hit: true });
+          rest = rest.slice(idx + q.length);
+        }
+        if (rest) { parts.push({ t: rest, hit: false }); }
+      }
+      var on = S.highlight === r.id;
+      var fg = on ? "#060A06" : (r.in_force ? "#4CEF60" : "#4FB35F");
+      var idFg = on ? "#060A06" : (r.in_force ? "#C9FFD1" : "#4FB35F");
+      var metaFg = on ? "#060A06" : "#4FB35F";
+      var meta = r.in_force
+        ? (r.since_version > 1 ? "added at v" + r.since_version : "in force since v1")
+        : "repealed at v" + r.since_version;
+      return '<div id="r' + r.id + '" style="display: grid;'
+        + ' grid-template-columns: 3rem minmax(0, 1fr); gap: 8px; padding: 7px 6px;'
+        + ' border-bottom: 1px solid #2C7A3A; background: ' + (on ? "#4CEF60" : "transparent")
+        + "; color: " + fg + ';">'
+        + '<div><span style="color: ' + idFg + ';">' + r.id + "</span>"
+        + '<span style="display: block; font-size: 0.9375rem; color: ' + metaFg
+        + '; letter-spacing: 0.06em;">' + (r.immutable ? "IMMUT" : "MUT") + "</span></div>"
+        + '<div><p style="margin: 0; text-decoration: '
+        + (r.in_force ? "none" : "line-through") + '; text-wrap: pretty;">'
+        + parts.map(function (p) {
+            return '<span style="background: ' + (p.hit && !on ? "#2C7A3A" : "transparent")
+              + "; color: " + (p.hit && !on ? "#FFFFFF" : "inherit") + ';">'
+              + esc(p.t) + "</span>";
+          }).join("")
+        + '</p><p style="margin: 2px 0 0; font-size: 1rem; color: ' + metaFg + ';">'
+        + meta + "</p></div></div>";
+    }).join("");
+  }
+
+  function tokens(arr, add) {
+    return arr.map(function (w) {
+      return '<span style="background: ' + (w.hit ? (add ? "#4CEF60" : "transparent") : "transparent")
+        + "; color: " + (w.hit ? (add ? "#060A06" : "#4FB35F") : "inherit")
+        + "; text-decoration: " + (w.hit && !add ? "line-through" : "none") + ';">'
+        + esc(w.t) + "</span>";
+    }).join("");
+  }
+
+  function paintDiff() {
+    var d = S.data;
+    if (!d) { return; }
+    var versions = d.versions;
+    var sel = versions.filter(function (v) { return v.version === S.version; })[0]
+      || versions[versions.length - 1];
+
+    $("versiontabs").innerHTML = versions.map(function (v) {
+      var on = sel && v.version === sel.version;
+      return '<button type="button" data-version="' + v.version + '" style="border: 1px solid'
+        + " #2C7A3A; background: " + (on ? "#4CEF60" : "transparent") + "; color: "
+        + (on ? "#060A06" : "#8FE79C") + '; padding: 0 8px; cursor: pointer; font-size: 1.125rem;">v'
+        + v.version + "</button>";
+    }).join("");
+
+    $("diffhead").textContent = sel
+      ? "v" + sel.version + "  " + String(sel.at).toUpperCase() : "NO HISTORY";
+    $("diffmeta").textContent = sel
+      ? (sel.by ? "by " + sel.by + "  //  " : "") + "hash " + String(sel.hash).toUpperCase() : "";
+
+    var changes = sel ? (sel.changes || []) : [];
+    if (!changes.length) {
+      $("diffchanges").innerHTML = '<p style="color: #8FE79C; margin: 0;">'
+        + "no recorded change for this version</p>";
+      return;
+    }
+    $("diffchanges").innerHTML = changes.map(function (c) {
+      var head, before = "", after = "", hasBefore = false, hasAfter = false;
+      if (c.kind === "changed") {
+        var wd = wordDiff(c.before, c.after);
+        head = "RULE " + c.rule + " REWRITTEN";
+        before = tokens(wd.before, false);
+        after = tokens(wd.after, true);
+        hasBefore = true; hasAfter = true;
+      } else if (c.kind === "removed") {
+        head = "RULE " + c.rule + " REPEALED";
+        before = tokens(words(c.before).map(function (t) { return { t: t, hit: true }; }), false);
+        hasBefore = true;
+      } else {
+        head = c.rule ? "RULE " + c.rule + " ENACTED" : "GENESIS";
+        after = tokens(words(c.after).map(function (t) { return { t: t, hit: true }; }), true);
+        hasAfter = true;
+      }
+      return '<div style="border-top: 1px solid #2C7A3A; padding: 9px 0;">'
+        + '<p style="margin: 0 0 4px; color: #8FE79C; letter-spacing: 0.06em;">' + head + "</p>"
+        + (hasBefore
+            ? '<p style="margin: 0 0 3px; display: flex; gap: 7px; align-items: baseline;">'
+              + '<span style="color: #4FB35F; flex: none;">-</span>'
+              + '<span style="text-wrap: pretty;">' + before + "</span></p>" : "")
+        + (hasAfter
+            ? '<p style="margin: 0; display: flex; gap: 7px; align-items: baseline;">'
+              + '<span style="color: #C9FFD1; flex: none;">+</span>'
+              + '<span style="text-wrap: pretty;">' + after + "</span></p>" : "")
+        + "</div>";
+    }).join("");
+  }
+
+  function paintKeys() {
+    var acts = actions();
+    var open = openProposals();
+    $("keys").innerHTML = acts.length
+      ? acts.map(function (a, i) {
+          return '<button type="button" class="keybtn" data-act="' + a + '"><u>PF' + (i + 1)
+            + "</u> " + FORMS[a].label
+            + (a === "vote" && open.length ? " (" + open.length + ")" : "") + "</button>";
+        }).join("")
+      : "<span>NO ACTIONS AVAILABLE</span>";
+  }
+
+  function render() {
+    paintStatus();
+    paintRoster();
+    paintQueue();
+    paintLog();
+    paintPanel();
+    paintKeys();
+    if (!S.form) { $("formsec").hidden = true; }
+  }
+
+  // ---- events, delegated once so repainting never drops a handler --------
+
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest ? e.target.closest("[data-act],[data-vote],[data-tab],"
+      + "[data-version],[data-cite],#copy,#refresh") : null;
+    if (!t) { return; }
+    if (t.hasAttribute("data-act")) { openForm(t.getAttribute("data-act")); return; }
+    if (t.hasAttribute("data-vote")) {
+      openForm("vote", { id: t.getAttribute("data-vote") });
+      return;
+    }
+    if (t.hasAttribute("data-tab")) { S.tab = t.getAttribute("data-tab"); paintPanel(); return; }
+    if (t.hasAttribute("data-version")) {
+      S.version = Number(t.getAttribute("data-version"));
+      paintDiff();
+      return;
+    }
+    if (t.hasAttribute("data-cite")) {
+      e.preventDefault();
+      jumpToRule(Number(t.getAttribute("data-cite")));
+      return;
+    }
+    if (t.id === "refresh") { load(true); return; }
+    if (t.id === "copy") {
+      var text = buildCommand();
+      var done = function () {
+        S.copied = true;
+        $("copy").textContent = "COPIED";
+        setTimeout(function () { S.copied = false; $("copy").textContent = "COPY"; }, 1400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, done);
+      } else { done(); }
+    }
+  });
+
+  document.addEventListener("input", function (e) {
+    var el = e.target;
+    if (el.id === "query") { S.query = el.value; paintRules(); return; }
+    if (el.hasAttribute && el.hasAttribute("data-field")) {
+      S.values[el.getAttribute("data-field")] = el.value;
+      refreshCommand();
+    }
+  });
+
+  document.addEventListener("change", function (e) {
+    var el = e.target;
+    if (el.id === "showgone") { S.showGone = el.checked; paintRules(); return; }
+    if (el.hasAttribute && el.hasAttribute("data-field")) {
+      S.values[el.getAttribute("data-field")] = el.value;
+      refreshCommand();
+    }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    var tag = (e.target.tagName || "").toUpperCase();
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag)) {
+      if (e.key === "Escape") { e.target.blur(); }
+      return;
+    }
+    if (e.key === "Escape") { S.form = null; paintForm(); return; }
+    if (e.key === "r" || e.key === "R") { load(true); return; }
+    var n = null;
+    if (/^F[1-4]$/.test(e.key)) { n = Number(e.key.slice(1)); }
+    if (/^[1-4]$/.test(e.key)) { n = Number(e.key); }
+    var acts = actions();
+    if (n && acts[n - 1]) { e.preventDefault(); openForm(acts[n - 1]); }
+  });
+
+  // ---- boot ---------------------------------------------------------------
+
+  render();
+  load();
+  setInterval(paintStatus, 1000);
+  setInterval(function () { load(true); }, POLL_SECONDS * 1000);
+})();
+</script>
+
+</body>
+</html>
