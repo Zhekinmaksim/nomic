@@ -41,10 +41,11 @@ async function serveWeb() {
 }
 
 test("terminal page renders the fallback game and builds CLI commands", async ({ page }) => {
-  const server = await serveWeb();
+  const productionUrl = process.env.BASE_URL;
+  const server = productionUrl ? null : await serveWeb();
   try {
     await page.route("https://esm.sh/**", (route) => route.abort());
-    await page.goto(server.url);
+    await page.goto(productionUrl || server.url);
 
     await expect(page.locator("#source")).toHaveText("CONTRACT: SNAPSHOT");
     await expect(page.locator("#phase")).toHaveText("HELD");
@@ -69,6 +70,6 @@ test("terminal page renders the fallback game and builds CLI commands", async ({
     await expect(page.locator("#diffhead")).toContainText("v1");
     await expect(page.locator("#diffchanges")).toContainText("GENESIS");
   } finally {
-    await server.close();
+    await server?.close();
   }
 });
