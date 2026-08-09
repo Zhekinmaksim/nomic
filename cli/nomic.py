@@ -40,6 +40,7 @@ genlayer commands without running anything.
 import argparse
 import json
 import os
+import pathlib
 import shutil
 import subprocess
 import sys
@@ -60,6 +61,26 @@ VERDICT_MARK = {
 
 class Failure(Exception):
     pass
+
+
+def load_local_env() -> None:
+    """Load .env.local for local convenience, without overriding shell env."""
+    root = pathlib.Path(__file__).resolve().parents[1]
+    env_file = root / ".env.local"
+    if not env_file.exists():
+        return
+    for raw in env_file.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+load_local_env()
 
 
 def address() -> str:
