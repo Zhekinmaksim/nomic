@@ -40,6 +40,9 @@
   .keybtn { background: none; border: none; padding: 0; cursor: pointer; color: #060A06; }
   .keybtn u { text-underline-offset: 2px; }
   .keybtn:hover { text-decoration: underline; }
+  .txbtn { background: #4CEF60; border: 1px solid #4CEF60; color: #060A06; padding: 1px 14px; cursor: pointer; font-size: 1.125rem; letter-spacing: 0.08em; }
+  .txbtn:hover { background: #C9FFD1; border-color: #C9FFD1; }
+  .txbtn:disabled { opacity: 0.58; cursor: not-allowed; }
 
   @media (max-width: 1180px) {
     .panes { grid-template-columns: minmax(0, 1fr); }
@@ -108,7 +111,9 @@
         <button type="button" id="copy" style="flex: none; background: #4CEF60; color: #060A06; border: none; padding: 1px 12px; cursor: pointer; font-size: 1.125rem; letter-spacing: 0.08em;">COPY</button>
       </div>
       <div style="margin-top: 10px; display: flex; align-items: baseline; gap: 8px 12px; flex-wrap: wrap;">
-        <button type="button" id="sendtx" class="keybtn" style="border: 1px solid #4CEF60; padding: 0 10px;">SEND TX</button>
+        <span style="color: #C9FFD1;">wallet&gt;</span>
+        <button type="button" id="sendtx" class="txbtn">SEND TRANSACTION</button>
+        <span style="color: #8FE79C;">WALLET SIGNATURE REQUIRED</span>
         <span id="txstate" style="color: #4FB35F; word-break: break-all;"></span>
       </div>
     </section>
@@ -421,7 +426,7 @@
     $("connect").textContent = w.address ? "WALLET CONNECTED" : "CONNECT WALLET";
     $("connect").disabled = w.connecting || w.sending;
     if ($("sendtx")) {
-      $("sendtx").textContent = w.sending ? "SENDING" : "SEND TX";
+      $("sendtx").textContent = w.sending ? "SENDING TRANSACTION" : "SEND TRANSACTION";
       $("sendtx").disabled = !S.form || w.connecting || w.sending;
     }
   }

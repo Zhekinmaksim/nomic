@@ -59,7 +59,8 @@ test("terminal page renders the fallback game and builds CLI commands", async ({
 
     await page.getByRole("button", { name: /PF1 JOIN/ }).click();
     await expect(page.locator("#command")).toHaveText('python3 cli/nomic.py join "Player"');
-    await expect(page.getByRole("button", { name: "SEND TX" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "SEND TRANSACTION" })).toBeVisible();
+    await expect(page.locator("#formsec")).toContainText("WALLET SIGNATURE REQUIRED");
 
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: /PF2 MOVE/ }).click();
